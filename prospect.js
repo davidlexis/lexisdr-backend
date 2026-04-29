@@ -1,6 +1,7 @@
 // LexiSDR Prospect API
 // Deploys to Vercel — no coding needed, just follow SETUP.md
-// Pulls: Google firm signals via Serper, email via Hunter, AI email via Claude
+// Pulls: Google firm signals via Serper, email via Hunter
+// NOTE: AI email writing happens in the frontend via Claude Pro — no Anthropic key needed here
 
 export default async function handler(req, res) {
   // Allow your LexiSDR frontend to call this
@@ -16,7 +17,7 @@ export default async function handler(req, res) {
 
   const SERPER_KEY = process.env.SERPER_API_KEY;
   const HUNTER_KEY = process.env.HUNTER_API_KEY;
-  const ANTHROPIC_KEY = process.env.ANTHROPIC_API_KEY;
+  // No Anthropic key needed — email generation runs in the frontend via Claude Pro
 
   try {
     // ── Step 1: Pull firm signals from Google via Serper ──────────────────
@@ -67,65 +68,13 @@ export default async function handler(req, res) {
       email = hunterData?.data?.email || null;
     }
 
-    // ── Step 3: Generate AI outreach email via Claude ─────────────────────
-    let aiEmail = null;
-    if (ANTHROPIC_KEY) {
-      const signalText = signals.slice(0, 3).map((s, i) => `${i + 1}. ${s}`).join("\n");
-      const prompt = `You are LexiSDR, an AI SDR for LexisNexis selling legal research and AI tools to law firms.
-
-Write a highly personalized cold outreach email to:
-- Name: ${contactName || "Managing Partner"}
-- Title: ${contactTitle || "Partner"}
-- Firm: ${firmName}
-- Practice Area: ${practiceArea || "General Practice"}
-- Firm Size: ${firmSize || "Small firm"}
-- Location: ${city ? city + ", " + state : state}
-
-Recent signals found about this firm:
-${signalText || "Growing practice in " + state}
-
-Rules:
-- Subject line referencing something specific and recent
-- 3 short paragraphs max — punchy and human, not salesy
-- Reference 1-2 signals naturally without sounding like you Googled them
-- Value prop: LexisNexis helps them handle growing caseload with AI research tools, saving 8-12 hrs/week
-- Soft CTA: 15-minute call, 2 time options
-- Sign off as: David Daoud, LexisNexis Strategic Accounts
-- Do NOT use buzzwords like "synergy", "leverage", "game-changer"
-
-Return ONLY valid JSON, no markdown, no explanation:
-{"subject": "...", "body": "..."}`;
-
-      const claudeRes = await fetch("https://api.anthropic.com/v1/messages", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "x-api-key": ANTHROPIC_KEY,
-          "anthropic-version": "2023-06-01"
-        },
-        body: JSON.stringify({
-          model: "claude-sonnet-4-20250514",
-          max_tokens: 900,
-          messages: [{ role: "user", content: prompt }]
-        })
-      });
-      const claudeData = await claudeRes.json();
-      const rawText = claudeData.content?.find(b => b.type === "text")?.text || "";
-      try {
-        aiEmail = JSON.parse(rawText.replace(/```json|```/g, "").trim());
-      } catch {
-        aiEmail = { subject: `Introduction – ${firmName}`, body: rawText };
-      }
-    }
-
-    // ── Return everything ─────────────────────────────────────────────────
+    // ── Return everything — email generation happens in the frontend ─────
     return res.status(200).json({
       firm: firmName,
       contact: contactName,
       email: email,
       domain: firmDomain,
       signals,
-      aiEmail,
       score: computeScore(signals, practiceArea, firmSize),
     });
 
