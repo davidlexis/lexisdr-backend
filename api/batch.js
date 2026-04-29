@@ -109,7 +109,31 @@ export default async function handler(req, res) {
     const firmPattern2 = /([A-Z][a-zA-Z'-]+(?:\s+[A-Z][a-zA-Z'-]+){0,4})\s+(?:Law Firm|Law Office|Legal Services|& Associates|and Associates|Attorneys)/g;
 
     const excludeSet = new Set((excludeNames || []).map(n => n.toLowerCase().trim()));
-    const skipWords = new Set(["find","best","top","free","your","the","our","all","any","this","that","get","law","legal","attorney","lawyer","google","yelp","avvo","justia","findlaw","martindale","nolo","lawyers","courts","court","state","county","district","supreme","federal","general","practice","boutique","solo","small","mid","size","browse","search","directory","listing","reviews","rated","profile"]);
+
+    // First words that signal a generic phrase, not a real firm name
+    const genericStartWords = new Set([
+      "find","best","top","free","your","the","our","all","any","this","that","get",
+      "negligence","personal","civil","criminal","family","immigration","bankruptcy",
+      "estate","employment","general","boutique","solo","small","mid","local",
+      "experienced","trial","plaintiff","defense","accident","injury","tx","texas",
+      "browse","search","directory","listing","reviews","rated","profile","law","legal",
+      "affordable","aggressive","dedicated","trusted","proven","award"
+    ]);
+
+    // Full generic phrases — definitely not real firm names
+    const genericPhrases = [
+      "negligence attorneys","personal injury attorneys","personal injury lawyers",
+      "civil litigation attorneys","civil litigation lawyers","criminal defense attorneys",
+      "family law attorneys","immigration attorneys","bankruptcy attorneys",
+      "estate planning attorneys","real estate attorneys","employment attorneys",
+      "general practice attorneys","boutique law firms","small law firms",
+      "top law firms","best law firms","local attorneys","experienced attorneys",
+      "trial attorneys","plaintiff attorneys","defense attorneys","injury attorneys",
+      "accident attorneys","accident lawyers","injury lawyers","tx general practice",
+      "texas personal injury","texas law firm","law offices near","attorneys near",
+      "lawyers near","find attorneys","find lawyers","top attorneys","best attorneys",
+      "galyen attorneys","civil litigation attorneys","harris law firm",
+    ];
     const seenNames = new Set();
     const firms = [];
 
@@ -139,12 +163,10 @@ export default async function handler(req, res) {
               clean.length < 8 || clean.length > 80 ||
               seenNames.has(lower) ||
               excludeSet.has(lower) ||
-              skipWords.has(lower.split(" ")[0]) ||
-              lower.includes("general practice attorneys") ||
-              lower.includes("top boutique") ||
-              lower.includes("best lawyers") ||
-              lower.includes("find attorneys") ||
-              !clean.match(/[A-Z][a-z]/) // must have proper name casing
+              genericStartWords.has(lower.split(" ")[0]) ||
+              genericPhrases.some(p => lower.includes(p)) ||
+              lower.match(/^(negligence|personal injury|civil|criminal|family|immigration|bankruptcy|estate|employment|general practice|accident|injury)\s+(attorney|lawyer|law firm)/i) ||
+              !clean.match(/[A-Z][a-z]/) // must have at least one proper name
             ) continue;
 
             seenNames.add(lower);
